@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: gap: https://ssl.gstatic.com 'unsafe-eval' 'unsafe-inline';">
+    <title>Control de Gastos GUTY</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; background-color: #121212; color: #ffffff; margin: 0; padding: 20px; }
+        h1, h2 { color: #ff5722; text-align: center; margin-bottom: 10px; }
+        .subtitle { text-align: center; color: #bbb; font-size: 14px; margin-top: -10px; margin-bottom: 20px; }
+        .card { background: #1e1e1e; padding: 20px; border-radius: 10px; margin-bottom: 20px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
+        .input-group { display: flex; flex-direction: column; gap: 12px; }
+        input { padding: 15px; font-size: 18px; border: 1px solid #444; border-radius: 6px; background: #2c2c2c; color: #fff; text-align: center; }
+        button { padding: 15px; font-size: 16px; border: none; border-radius: 6px; background: #ff5722; color: #fff; font-weight: bold; cursor: pointer; text-transform: uppercase; }
+        button:active { background: #e64a19; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .sobre { background: #2a2a2a; padding: 15px; border-radius: 8px; text-align: center; border-left: 4px solid #ff5722; }
+        .sobre h3 { margin: 0 0 10px 0; font-size: 14px; color: #ccc; }
+        .sobre .monto { font-size: 22px; font-weight: bold; margin-bottom: 15px; color: #fff; }
+        .btn-pagar { background: #4caf50; font-size: 12px; padding: 10px; width: 100%; border-radius: 4px; border: none; color: white; font-weight: bold;}
+        .btn-pagar:active { background: #388e3c; }
+        .libre { background: #1b5e20; border: 2px solid #4caf50; }
+        .negativo { background: #b71c1c !important; border: 2px solid #f44336 !important; }
+    </style>
+</head>
+<body>
+    <h1>Control de gastos GUTY</h1>
+    <div class="subtitle">Administración Segura Offline</div>
+    
+    <div class="card">
+        <h2>Efectivo Neto del Día</h2>
+        <p style="text-align: center; margin-top: 0; color: #bbb;">Meta obligatoria: <strong>$1,125.00</strong></p>
+        <div class="input-group">
+            <input type="number" id="ingreso" placeholder="Escribe el efectivo total..." />
+            <button onclick="registrarIngreso()">Repartir a Sobres</button>
+        </div>
+    </div>
+
+    <div class="card libre" id="cardLibre">
+        <h2 style="color: #fff; margin-bottom: 5px;">Tu Ganancia Libre (Para Ti)</h2>
+        <p style="text-align: center; font-size: 28px; font-weight: bold; margin: 10px 0;" id="gananciaLibre">$0.00</p>
+    </div>
+
+    <div class="card">
+        <h2>Sobres Virtuales</h2>
+        <div class="grid" id="contenedorSobres">
+            <!-- Los sobres se generan aquí -->
+        </div>
+    </div>
+
+    <script src="cordova.js"></script>
+    <script>
+        const cuotas = {
+            rentaCasa: { nombre: 'Renta Casa (Día 15)', cuota: 135 },
+            rentaLocal: { nombre: 'Renta Local (Día 20)', cuota: 100 },
+            tiaCarmen: { nombre: 'Tía Carmen (Mes)', cuota: 170 },
+            mercadoLibre: { nombre: 'Mercado Libre (Mes)', cuota: 170 },
+            carbon: { nombre: 'Carbón', cuota: 200 },
+            comida: { nombre: 'Comida Familia', cuota: 300 },
+            gasolina: { nombre: 'Gasolina', cuota: 50 }
+        };
+        const TOTAL_DIARIO = 1125;
+        let saldos = { rentaCasa: 0, rentaLocal: 0, tiaCarmen: 0, mercadoLibre: 0, carbon: 0, comida: 0, gasolina: 0, libre: 0 };
+        let db = null;
+
+        document.addEventListener('deviceready', function() {
+            db = window.sqlitePlugin.openDatabase({ name: 'guty_finanzas.db', location: 'default' });
+
+            db.transaction(function(tx) {
+                tx.executeSql('CREATE TABLE IF NOT EXISTS saldos_negocio (clave TEXT PRIMARY KEY, monto REAL)');
+                
+                tx.executeSql('SELECT count(*) AS cnt FROM saldos_negocio', [], function(tx, rs) {
+                    if (rs.rows.item(0).cnt === 0) {
+                        for (let key in saldos) {
+                            tx.executeSql('INSERT INTO saldos_negocio (clave, monto) VALUES (?, ?)', [key, 0]);
+                        }
+                        renderizarSobres();
+                    } else {
+                        cargarDatosDB();
+                    }
+                });
+            }, function(error) {
+                alert('Error al iniciar la base de datos: ' + error.message);
+            });
+        }, false);
+
+        function cargarDatosDB() {
+            db.transaction(function(tx) {
+                tx.executeSql('SELECT * FROM saldos_negocio', [], function(tx, rs) {
+                    for (let i = 0; i < rs.rows.length; i++) {
+                        let fila = rs.rows.item(i);
+                        saldos[fila.clave] = fila.monto;
+                    }
+                    renderizarSobres();
+                });
+            });
+        }
+
+        function actualizarSaldoDB(clave, monto) {
+            db.transaction(function(tx) {
+                tx.executeSql('UPDATE saldos_negocio SET monto = ? WHERE clave = ?', [monto, clave]);
+            });
+        }
+
+        function registrarIngreso() {
+            const input = document.getElementById('ingreso');
+            const monto = parseFloat(input.value);
+            
+            if (isNaN(monto) || monto <= 0) {
+                alert('Pon un número válido.');
+                return;
+            }
+
+            if (!confirm(`Vas a ingresar $${monto}.\n\nSe descontarán automáticamente los $${TOTAL_DIARIO}. ¿Seguro?`)) {
+                return;
+            }
+
+            for (const key in cuotas) {
+                saldos[key] += cuotas[key].cuota;
+                actualizarSaldoDB(key, saldos[key]);
+            }
+
+            saldos.libre += (monto - TOTAL_DIARIO);
+            actualizarSaldoDB('libre', saldos.libre);
+
+            input.value = '';
+            renderizarSobres();
+        }
+
+        function vaciarSobre(key) {
+            if(confirm(`¿Ya pagaste "${cuotas[key].nombre}" en la vida real?\n\nEste sobre quedará en $0.`)) {
+                saldos[key] = 0;
+                actualizarSaldoDB(key, 0);
+                renderizarSobres();
+            }
+        }
+
+        function renderizarSobres() {
+            const contenedor = document.getElementById('contenedorSobres');
+            contenedor.innerHTML = '';
+
+            for (const key in cuotas) {
+                const div = document.createElement('div');
+                div.className = 'sobre';
+                div.innerHTML = `
+                    <h3>${cuotas[key].nombre}</h3>
+                    <div class="monto">$${saldos[key].toFixed(2)}</div>
+                    <button class="btn-pagar" onclick="vaciarSobre('${key}')">VACIAR SOBRE</button>
+                `;
+                contenedor.appendChild(div);
+            }
+
+            const cardLibre = document.getElementById('cardLibre');
+            const gananciaLibre = document.getElementById('gananciaLibre');
+            
+            gananciaLibre.innerText = `$${saldos.libre.toFixed(2)}`;
+            
+            if (saldos.libre < 0) {
+                cardLibre.classList.add('negativo');
+                cardLibre.classList.remove('libre');
+                gananciaLibre.innerHTML = `$${saldos.libre.toFixed(2)} <br><span style="font-size: 16px; color: #ffcccc;">(LE DEBES AL NEGOCIO)</span>`;
+            } else {
+                cardLibre.classList.add('libre');
+                cardLibre.classList.remove('negativo');
+            }
+        }
+    </script>
+</body>
+</html>
