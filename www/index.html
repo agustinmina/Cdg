@@ -35,7 +35,7 @@
         <p style="text-align: center; margin-top: 0; color: #bbb;">Meta obligatoria: <strong>$1,125.00</strong></p>
         <div class="input-group">
             <input type="number" id="ingreso" placeholder="Escribe el efectivo total..." />
-            <button onclick="registrarIngreso()">Repartir a Sobres (Automático)</button>
+            <button onclick="registrarIngreso()">Repartir a Sobres</button>
         </div>
     </div>
 
@@ -48,7 +48,6 @@
     <div class="card">
         <h2>Sobres Virtuales</h2>
         <div class="grid" id="contenedorSobres">
-            <!-- Los sobres se generan aquí -->
         </div>
     </div>
 
@@ -143,7 +142,7 @@
             let nombreSobre = key === 'libre' ? 'Tu Ganancia Libre' : cuotas[key].nombre;
             let inputAjuste = prompt(`Ajuste manual para "${nombreSobre}".\n\nEscribe cuánto vas a sumar.\n(Si quieres restar, ponle el signo - al inicio, ejemplo: -50):`, "0");
             
-            if (inputAjuste === null || inputAjuste.trim() === "") return; // Si cancela o deja en blanco
+            if (inputAjuste === null || inputAjuste.trim() === "") return;
 
             let monto = parseFloat(inputAjuste);
             
