@@ -1,0 +1,17 @@
+{
+  "name": "com.guty.controlgastos",
+  "version": "1.0.0",
+  "displayName": "Control Gastos GUTY",
+  "cordova": {
+    "plugins": {
+      "cordova-sqlite-storage": {}
+    },
+    "platforms": [
+      "android"
+    ]
+  },
+  "dependencies": {
+    "cordova-android": "^12.0.0",
+    "cordova-sqlite-storage": "^6.1.0"
+  }
+}
